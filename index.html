@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Lime Run</title>
+<meta name="theme-color" content="#B7FF00" />
+<link rel="manifest" href="manifest.webmanifest" />
+<style>
+:root{--lime:#b7ff00;--bg:#070807;--card:#121512;--muted:#94a094;--txt:#f6fff3;--red:#ff4d4d;--blue:#4db6ff}*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}button,input{font:inherit}.wrap{max-width:520px;margin:0 auto;min-height:100dvh;padding:18px 16px 90px}.top{display:flex;align-items:center;gap:12px;margin:8px 0 18px}.logo{width:48px;height:48px;border-radius:16px;background:var(--lime);display:grid;place-items:center;color:#111;font-weight:900;font-size:26px;box-shadow:0 0 28px #b7ff0045}.title h1{font-size:26px;margin:0}.title p{margin:2px 0 0;color:var(--muted)}.card{background:linear-gradient(180deg,#151a15,#0f120f);border:1px solid #ffffff12;border-radius:24px;padding:18px;margin:14px 0;box-shadow:0 12px 30px #0008}.hero{min-height:250px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}.phase{font-size:24px;font-weight:900;letter-spacing:.4px}.timer{font-variant-numeric:tabular-nums;font-size:76px;line-height:1;font-weight:950;margin:12px 0;color:var(--lime)}.sub{color:var(--muted);font-size:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.stat{background:#090b09;border:1px solid #ffffff12;border-radius:18px;padding:14px}.stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}.stat span{color:var(--muted);font-size:13px}.btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;position:fixed;left:0;right:0;bottom:0;max-width:520px;margin:0 auto;padding:12px 16px 20px;background:linear-gradient(0deg,#070807 70%,transparent)}button{border:0;border-radius:18px;padding:16px 14px;font-weight:900;background:#222922;color:var(--txt)}button.primary{background:var(--lime);color:#111}button.danger{background:#2b1111;color:#ffd2d2}.wide{grid-column:1/3}.settings label{display:block;color:var(--muted);font-size:13px;margin:8px 0 6px}.settings input{width:100%;background:#080a08;color:#fff;border:1px solid #ffffff18;border-radius:14px;padding:12px}canvas{width:100%;height:230px;background:#060706;border-radius:20px;border:1px solid #ffffff12}.pill{display:inline-flex;gap:8px;align-items:center;background:#080a08;border:1px solid #ffffff14;border-radius:999px;padding:8px 12px;color:var(--muted);font-size:13px;margin:3px}.hidden{display:none}.historyItem{border-top:1px solid #ffffff12;padding:12px 0;color:#dfeedd}.historyItem:first-child{border-top:0}.ok{color:var(--lime)}.warn{color:#ffd166}.small{font-size:13px;color:var(--muted);line-height:1.4}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><div class="logo">🍋</div><div class="title"><h1>Lime Run</h1><p>Oi, Jéssica. Bora treinar?</p></div></div>
+
+  <section class="card settings" id="setup">
+    <div class="pill">🏃 1 min corrida</div><div class="pill">🚶 1 min caminhada</div><div class="pill">⏱️ 30 min</div>
+    <label>Seu nome</label><input id="name" value="Jéssica">
+    <div class="grid">
+      <div><label>Caminhada (min)</label><input id="walk" type="number" min="0.25" step="0.25" value="1"></div>
+      <div><label>Corrida (min)</label><input id="run" type="number" min="0.25" step="0.25" value="1"></div>
+    </div>
+    <label>Duração total (min)</label><input id="total" type="number" min="2" step="1" value="30">
+    <p class="small">Permita localização e microfone quando o celular pedir.</p>
+  </section>
+
+  <section class="card hero">
+    <div class="phase" id="phase">Pronta</div>
+    <div class="timer" id="mainTimer">30:00</div>
+    <div class="sub" id="subText">Toque em iniciar</div>
+  </section>
+
+  <section class="grid">
+    <div class="stat"><b id="dist">0,00</b><span>km</span></div>
+    <div class="stat"><b id="pace">--:--</b><span>pace médio</span></div>
+    <div class="stat"><b id="speed">0,0</b><span>km/h</span></div>
+    <div class="stat"><b id="shots">15</b><span>tiros restantes</span></div>
+  </section>
+
+  <section class="card"><canvas id="map" width="900" height="520"></canvas><p class="small" id="gps">GPS aguardando...</p></section>
+
+  <section class="card"><h3>Histórico</h3><div id="history"></div></section>
+</div>
+
+<div class="btns">
+  <button class="primary" id="start">▶ Iniciar</button>
+  <button id="talk">🎙️ Falar</button>
+  <button id="pause">⏸ Pausar</button>
+  <button class="danger" id="finish">■ Finalizar</button>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let state='idle', startAt=0, elapsed=0, tick=null, watch=null, points=[], lastSpeak='', lastPoint=null;
+let warned=new Set();
+const synth=window.speechSynthesis;
+function cfg(){return {name:$('name').value||'Jéssica',walk:+$('walk').value*60,run:+$('run').value*60,total:+$('total').value*60}}
+function mmss(s){s=Math.max(0,Math.round(s));return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`}
+function speak(txt,force=false){ if(!force && lastSpeak===txt) return; lastSpeak=txt; try{ synth.cancel(); const u=new SpeechSynthesisUtterance(txt); u.lang='pt-BR'; u.volume=1; u.rate=.95; u.pitch=1.08; synth.speak(u); if(navigator.vibrate) navigator.vibrate([180,80,180]); }catch(e){} }
+function beep(){try{let ctx=new (window.AudioContext||window.webkitAudioContext)();let o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=900;g.gain.value=.18;o.connect(g);g.connect(ctx.destination);o.start();setTimeout(()=>{o.stop();ctx.close()},220)}catch(e){}}
+function current(){const c=cfg(), cycle=c.walk+c.run, e=elapsed%cycle, isWalk=e<c.walk, phaseLen=isWalk?c.walk:c.run, leftPhase=phaseLen-(isWalk?e:e-c.walk), remaining=c.total-elapsed; const runShotsTotal=Math.ceil(c.total/cycle); const completedRuns=Math.floor((elapsed+c.walk)/cycle); return {c,isWalk,leftPhase,remaining,runShotsLeft:Math.max(0,runShotsTotal-completedRuns)}}
+function distance(){let m=0; for(let i=1;i<points.length;i++)m+=haversine(points[i-1],points[i]); return m}
+function haversine(a,b){const R=6371000,rad=x=>x*Math.PI/180,dLat=rad(b.lat-a.lat),dLon=rad(b.lng-a.lng); const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(s))}
+function drawMap(){const cv=$('map'),ctx=cv.getContext('2d');ctx.clearRect(0,0,cv.width,cv.height);ctx.fillStyle='#060706';ctx.fillRect(0,0,cv.width,cv.height);ctx.strokeStyle='#1d241d';ctx.lineWidth=1;for(let x=0;x<cv.width;x+=60){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke()}for(let y=0;y<cv.height;y+=60){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke()} if(points.length<2)return; let minLat=Math.min(...points.map(p=>p.lat)),maxLat=Math.max(...points.map(p=>p.lat)),minLng=Math.min(...points.map(p=>p.lng)),maxLng=Math.max(...points.map(p=>p.lng)); let pad=40, w=maxLng-minLng||.0001,h=maxLat-minLat||.0001; let pts=points.map(p=>({x:pad+(p.lng-minLng)/w*(cv.width-2*pad),y:cv.height-pad-(p.lat-minLat)/h*(cv.height-2*pad)})); ctx.strokeStyle='#b7ff00';ctx.lineWidth=8;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.stroke(); let p=pts.at(-1);ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(p.x,p.y,13,0,Math.PI*2);ctx.fill();}
+function update(){ if(state==='running') elapsed=(Date.now()-startAt)/1000; const c=cfg(); if(elapsed>=c.total){elapsed=c.total; render(); finish(true); return} render(); intelligentAlerts(); }
+function render(){const x=current(), km=distance()/1000; $('phase').textContent=x.isWalk?'🚶 Caminhando':'🏃 Correndo'; $('mainTimer').textContent=mmss(x.remaining); $('subText').textContent=`Próxima troca em ${mmss(x.leftPhase)}`; $('dist').textContent=km.toFixed(2).replace('.',','); const pace=km>0?(elapsed/60/km):0; $('pace').textContent=pace?`${Math.floor(pace)}:${String(Math.round((pace%1)*60)).padStart(2,'0')}`:'--:--'; $('speed').textContent=elapsed>0?(km/(elapsed/3600)).toFixed(1).replace('.',','):'0,0'; $('shots').textContent=x.runShotsLeft; drawMap();}
+function intelligentAlerts(){const x=current(), key=Math.floor(elapsed); if(Math.round(x.leftPhase)===10 && !warned.has('10-'+key)){warned.add('10-'+key); beep(); speak(`${x.c.name}, vamos ${x.isWalk?'correr':'caminhar'} em 10 segundos.`)} if(Math.round(x.leftPhase)===0 && !warned.has('switch-'+key)){warned.add('switch-'+key); beep(); speak(`${x.c.name}, ${x.isWalk?'começar a correr':'caminhar'}.`)} if(x.remaining<=(x.c.walk+x.c.run)*5 && !warned.has('5tiros')){warned.add('5tiros'); speak(`${x.c.name}, faltam cinco tiros de corrida.`)} if(x.remaining<=(x.c.walk+x.c.run)*3 && !warned.has('3tiros')){warned.add('3tiros'); speak(`Faltam três tiros. Você consegue.`)} if(x.remaining<=x.c.run+x.c.walk && x.isWalk && !warned.has('lastwalk')){warned.add('lastwalk'); speak(`${x.c.name}, última caminhada.`)} if(x.remaining<=x.c.run && !x.isWalk && !warned.has('lastrun')){warned.add('lastrun'); speak(`${x.c.name}, última corrida.`)} if(x.remaining<=10 && !warned.has('end10')){warned.add('end10'); speak(`Treino terminando em 10 segundos.`)} if(elapsed>=x.c.total/2 && !warned.has('half')){warned.add('half'); speak(`Metade do treino concluída.`)} }
+function startGPS(){ if(!navigator.geolocation){$('gps').textContent='GPS não disponível';return} watch=navigator.geolocation.watchPosition(pos=>{const p={lat:pos.coords.latitude,lng:pos.coords.longitude,t:Date.now()}; if(!lastPoint||haversine(lastPoint,p)>3){points.push(p);lastPoint=p} $('gps').textContent=`Precisão: ${Math.round(pos.coords.accuracy)}m`;},err=>{$('gps').textContent='Permita localização para registrar o percurso.'},{enableHighAccuracy:true,maximumAge:1000,timeout:10000})}
+function start(){const c=cfg(); if(state==='running')return; if(state==='idle'){elapsed=0;points=[];lastPoint=null;warned.clear(); speak(`${c.name}, começar a caminhar. Treino de ${Math.round(c.total/60)} minutos.`,true); startGPS();} state='running'; startAt=Date.now()-elapsed*1000; clearInterval(tick); tick=setInterval(update,500); update();}
+function pause(){ if(state==='running'){state='paused';clearInterval(tick);speak('Treino pausado.')} else if(state==='paused') start();}
+function finish(auto=false){state='idle';clearInterval(tick); if(watch) navigator.geolocation.clearWatch(watch); const km=distance()/1000; const item={date:new Date().toLocaleString('pt-BR'),time:mmss(elapsed),km:km.toFixed(2),pace:$('pace').textContent}; if(elapsed>60){let h=JSON.parse(localStorage.limeRunHistory||'[]');h.unshift(item);localStorage.limeRunHistory=JSON.stringify(h.slice(0,20));loadHistory()} speak(auto?'Parabéns, Jéssica! Treino concluído.':'Treino finalizado.',true);}
+function loadHistory(){let h=JSON.parse(localStorage.limeRunHistory||'[]'); $('history').innerHTML=h.length?h.map(i=>`<div class="historyItem"><b>${i.date}</b><br>${i.time} • ${i.km} km • pace ${i.pace}</div>`).join(''):'<p class="small">Nenhum treino salvo ainda.</p>'}
+function answer(q){q=(q||'').toLowerCase(); const x=current(), km=distance()/1000; if(q.includes('tempo')||q.includes('falta')) speak(`Faltam ${mmss(x.remaining).replace(':',' minutos e ')} segundos.`); else if(q.includes('dist')) speak(`Você fez ${km.toFixed(2).replace('.',',')} quilômetros.`); else if(q.includes('ritmo')||q.includes('pace')) speak(`Seu pace médio é ${$('pace').textContent} por quilômetro.`); else if(q.includes('tiro')) speak(`Faltam ${x.runShotsLeft} tiros de corrida.`); else if(q.includes('correndo')||q.includes('caminhando')) speak(x.isWalk?'Agora é caminhada.':'Agora é corrida.'); else speak('Pode perguntar: quanto falta, qual a distância, qual o pace, ou quantos tiros faltam.');}
+function talk(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){speak('Seu navegador não liberou reconhecimento de voz.');return} const r=new SR(); r.lang='pt-BR'; r.interimResults=false; r.maxAlternatives=1; r.onresult=e=>answer(e.results[0][0].transcript); r.onerror=()=>speak('Não consegui ouvir. Tente de novo.'); r.start();}
+$('start').onclick=start;$('pause').onclick=pause;$('finish').onclick=()=>finish(false);$('talk').onclick=talk;['walk','run','total','name'].forEach(id=>$(id).onchange=()=>{if(state==='idle'){elapsed=0;render()}}); loadHistory();render(); if('serviceWorker'in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
